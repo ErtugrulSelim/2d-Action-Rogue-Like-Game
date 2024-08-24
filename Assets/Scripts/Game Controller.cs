@@ -1,117 +1,122 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class GameController : MonoBehaviour
 {
-    public float moveSpeed = 5f;
-    public float jumpHeight = 10f;
-    public LayerMask groundLayer;
-    public LayerMask wallLayer;
-    private bool spaceActive;
+    [SerializeField] private GameObject player;
+    [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float jumpHeight = 10f;
+    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private LayerMask wallLayer;
+    [SerializeField] private float dodgeDuration = 0.5f;
+    [SerializeField] private KeyCode dodgeKey = KeyCode.E;
+
     private Rigidbody2D rb;
+    private Collider2D coll;
     private bool isGrounded;
     private bool isWall;
-    private Collider2D coll;
-    public float timer = 1f;
-    private int wallJump = 0;
-    private string lastWallName = "";
+    private float timer = 2f;
+    private int wallJumpCount = 0;
+    private GameObject lastWall = null;
+    private bool isDodging = false;
+    private int playerLayer;
+    private int enemyLayer;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         coll = GetComponent<Collider2D>();
+        playerLayer = LayerMask.NameToLayer("Player");
+        enemyLayer = LayerMask.NameToLayer("Enemy");
     }
 
     void Update()
     {
         Move();
         Jump();
+
+        if (Input.GetKeyDown(dodgeKey) && !isDodging)
+        {
+            StartCoroutine(Dodge());
+        }
     }
 
-    void Move()
+    private void Move()
     {
         float moveInput = Input.GetAxis("Horizontal");
-        Vector2 moveVelocity = new Vector2(moveInput * moveSpeed, rb.velocity.y);
-        rb.velocity = moveVelocity;
+        rb.velocity = new Vector2(moveInput * moveSpeed, rb.velocity.y);
     }
 
-    void Jump()
+    private void Jump()
+    {
+        CheckGroundAndWallStatus();
+
+        if (Input.GetButtonDown("Jump"))
+        {
+            if (isGrounded && !isWall)
+            {
+                ApplyJump();
+            }
+            else if (isWall && wallJumpCount < 3)
+            {
+                HandleWallJump();
+            }
+        }
+
+        if (isGrounded) wallJumpCount = 0; // Reset wall jump count when grounded
+    }
+
+    private void CheckGroundAndWallStatus()
     {
         isGrounded = Physics2D.OverlapCircle(transform.position, 1f, groundLayer);
         isWall = Physics2D.OverlapBox(coll.bounds.center, coll.bounds.size, 0f, wallLayer);
+    }
 
-        if (Input.GetButtonDown("Jump") && isGrounded && !isWall)
+    private void ApplyJump()
+    {
+        Vector2 jumpVelocity = new Vector2(rb.velocity.x, Mathf.Sqrt(2 * jumpHeight * Mathf.Abs(Physics2D.gravity.y)));
+        rb.velocity = jumpVelocity;
+    }
+
+    private void HandleWallJump()
+    {      
+        var colliders = Physics2D.OverlapCircleAll(transform.position, 1.2f, wallLayer);
+        foreach (var collider in colliders)
         {
-            Vector2 jumpVelocity = new Vector2(rb.velocity.x, Mathf.Sqrt(2 * jumpHeight * Mathf.Abs(Physics2D.gravity.y)));
-            rb.velocity = jumpVelocity;
-        }
-        else if (isWall && wallJump < 3)
-        {
-            Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, 1.2f, wallLayer);
-            string currentWallName = "";
-            foreach (Collider2D collider in colliders)
+            if (collider.gameObject != lastWall)
             {
-                currentWallName = collider.gameObject.name;
-            }
-
-            if (currentWallName != lastWallName)
-            {
-                wallJump = 0; // Reset count if hitting a new wall
-                lastWallName = currentWallName; // Update the last wall hit
-            }
-
-            spaceActive = true;
-            timer -= Time.deltaTime;
-            rb.gravityScale = 0f;
-
-            if (Input.GetButtonDown("Jump") && spaceActive)
-            {
-                rb.gravityScale = 2f;
-                Vector2 jumpVelocity = new Vector2(rb.velocity.x, Mathf.Sqrt(2 * jumpHeight * Mathf.Abs(Physics2D.gravity.y)));
-                rb.velocity = jumpVelocity;
-                wallJump++;
-                Debug.Log(wallJump);
-
-                if (wallJump >= 3)
-                {
-                    rb.gravityScale = 10f;
-                    rb.angularDrag = 0.1f;
-                }
-            }
-            else if (timer <= 0.85 || !Input.GetButton("Jump"))
-            {
-                rb.velocity = Vector2.zero;
-                rb.angularDrag = 0f;
-                timer = 1f;
+                lastWall = collider.gameObject;
+                wallJumpCount = 0;
             }
         }
-        else if (!isWall)
+
+        timer -= Time.deltaTime;
+        rb.gravityScale = 0f;
+
+        if (Input.GetButtonDown("Jump"))
         {
-            lastWallName = ""; // Reset last wall name when not on a wall
             rb.gravityScale = 2f;
-            rb.angularDrag = 0f;
-            timer = 1f;
+            ApplyJump();
+            wallJumpCount++;
+            Debug.Log(wallJumpCount);
         }
 
-        if (isGrounded)
+        if (timer <= 0.65f || !Input.GetButton("Jump"))
         {
-            wallJump = 0; // Reset wall jump count when grounded
-        }
-
-        if (Input.GetKey(KeyCode.S) && isWall)
-        {
-            rb.angularDrag = 0.1f;
-            rb.gravityScale = 10f;
+            rb.velocity = Vector2.zero;
+            rb.gravityScale = 2f;
+            timer = 2f;
         }
     }
 
-    void OnDrawGizmos()
+    private IEnumerator Dodge()
     {
-        if (coll != null)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireCube(coll.bounds.center, coll.bounds.size);
-        }
+        isDodging = true;
+        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, true);
+
+        yield return new WaitForSeconds(dodgeDuration);
+
+        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, false);
+        isDodging = false;
     }
 }

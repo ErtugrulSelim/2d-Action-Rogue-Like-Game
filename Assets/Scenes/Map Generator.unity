@@ -259,9 +259,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d12b4629d364ad1469275c27d9a504c8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Box:
+  Ground:
   - {fileID: 5321523772478813778, guid: 96a1e71a2eff86a428443cb839f1d551, type: 3}
+  JumpWall: []
+  Wall: {fileID: 5321523772478813778, guid: 55992b50e645c944785ff6510d558b15, type: 3}
+  mainCamera: {fileID: 48011127}
   BoxCount: 4
+  JumpWallCount: 2
 --- !u!4 &1111055947
 Transform:
   m_ObjectHideFlags: 0
